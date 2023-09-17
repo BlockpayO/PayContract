@@ -6,10 +6,15 @@ struct Payments {
     string firstName;
     string lastName;
     string email;
+    uint256 timeStamp;
+    string paymentId;
+    address payer;
 }
 
 // store payment plans
 struct PaymentPlan {
     string planName;
+    string paymentId;
     uint256 amountInUSD;
+    uint256 timeCreated;
 }

@@ -15,14 +15,17 @@ contract BlockpayFactory {
         Blockpay blockPayContract,
         string planName,
         uint256 amount,
-        uint256 contractIndex
-    );
-    event ReceivedPAymentBpF(
-        address planCreator,
         uint256 contractIndex,
+        string paymentId
+    );
+    event ReceivedPaymentBpF(
+        address planCreator,
+        address payer,
+        string paymentId,
         string firstname,
         string lastname,
-        string email
+        string email,
+        uint256 timeStamp
     );
     event WithdrawnBpF(
         address planCreator,
@@ -36,6 +39,7 @@ contract BlockpayFactory {
 
     mapping(address => Blockpay[]) addressToContract;
     mapping(address => mapping(Blockpay => uint256)) creatorToContractAddressToContractIndex;
+    mapping(address => mapping(string => Blockpay)) creatorToPaymentIDToBlockpayContract;
 
     constructor(address _priceFeedAddress) {
         factoryDeployer = msg.sender;
@@ -47,23 +51,34 @@ contract BlockpayFactory {
     // all his/her contracts
     function createPaymentBpF(
         string memory _planName,
-        uint256 _amountInUSD
+        uint256 _amountInUSD,
+        string memory _paymentId
     ) public {
         Blockpay blockpayContract = new Blockpay(
             priceFeedAddress,
             msg.sender,
             address(this)
         );
-        blockpayContract.createPaymentPlan(_planName, _amountInUSD, msg.sender);
+        blockpayContract.createPaymentPlan(
+            _planName,
+            _amountInUSD,
+            _paymentId,
+            block.timestamp,
+            msg.sender
+        );
         addressToContract[msg.sender].push(blockpayContract);
         creatorToContractAddressToContractIndex[msg.sender][
             blockpayContract
         ] = count;
+        creatorToPaymentIDToBlockpayContract[msg.sender][
+            _paymentId
+        ] = blockpayContract;
         emit CreatedPaymentPlanBpF(
             blockpayContract,
             _planName,
             _amountInUSD,
-            count
+            count,
+            _paymentId
         );
         count += 1;
     }
@@ -71,19 +86,17 @@ contract BlockpayFactory {
     // receive payment
     function receivePaymentBpF(
         address _contractCreator,
-        uint256 _contractIndex,
+        string memory _paymentId,
         string memory _firstName,
         string memory _lastname,
         string memory _email
     ) public payable {
-        Blockpay blockpayContract = getContract(
+        Blockpay blockpayContract = getContractById(
             _contractCreator,
-            _contractIndex
+            _paymentId
         );
-        uint256 _amountInUSD = getPaymentPlanBpF(
-            _contractCreator,
-            _contractIndex
-        ).amountInUSD;
+        uint256 _amountInUSD = getPaymentPlanBpF(_contractCreator, _paymentId)
+            .amountInUSD;
         require(
             msg.value.getConversionRate(priceFeedAddress) >= _amountInUSD,
             "Insufficient Matic sent"
@@ -95,21 +108,25 @@ contract BlockpayFactory {
                 _lastname,
                 _email,
                 msg.value,
-                msg.sender
+                msg.sender,
+                block.timestamp,
+                _paymentId
             );
-            emit ReceivedPAymentBpF(
+            emit ReceivedPaymentBpF(
                 _contractCreator,
-                _contractIndex,
+                msg.sender,
+                _paymentId,
                 _firstName,
                 _lastname,
-                _email
+                _email,
+                block.timestamp
             );
         } else {
             revert TransactionNotSent();
         }
     }
 
-    function getTotalPaymentsBpf(
+    function getTotalPaymentsBpF(
         address _contractCreator,
         uint256 _contractIndex
     ) public view returns (Payments[] memory) {
@@ -120,19 +137,19 @@ contract BlockpayFactory {
         return blockpayContract.getPayments();
     }
 
-    function getPaymentsPerAddressBpf(
+    function getPaymentsPerAddressBpF(
         address _contractCreator,
-        uint256 _contractIndex,
+        string memory _paymentId,
         address _user
     ) public view returns (Payments[] memory) {
-        Blockpay blockpayContract = getContract(
+        Blockpay blockpayContract = getContractById(
             _contractCreator,
-            _contractIndex
+            _paymentId
         );
         return blockpayContract.getPaymentsPerAddress(_user);
     }
 
-    function conversionRateBpf(
+    function conversionRateBpF(
         uint256 _maticInWEI
     ) public view returns (uint256) {
         return _maticInWEI.getConversionRate(priceFeedAddress);
@@ -144,11 +161,11 @@ contract BlockpayFactory {
 
     function getPaymentPlanBpF(
         address _contractCreator,
-        uint256 _contractIndex
+        string memory _paymentId
     ) public view returns (PaymentPlan memory) {
-        Blockpay blockpayContract = getContract(
+        Blockpay blockpayContract = getContractById(
             _contractCreator,
-            _contractIndex
+            _paymentId
         );
 
         return blockpayContract.getPaymentPlan();
@@ -162,6 +179,15 @@ contract BlockpayFactory {
         return addressToContract[_contractCreator][_contractIndex];
     }
 
+    // get contract by paymentId
+    function getContractById(
+        address _contractCreator,
+        string memory _paymentId
+    ) public view returns (Blockpay) {
+        return
+            creatorToPaymentIDToBlockpayContract[_contractCreator][_paymentId];
+    }
+
     // get the index of a blockpay contract
     function getContractIndex(
         address _contractCreator,
@@ -172,6 +198,12 @@ contract BlockpayFactory {
             creatorToContractAddressToContractIndex[_contractCreator][
                 blockpayContract
             ];
+    }
+
+    function getContractsLength(
+        address _contractCreator
+    ) public view returns (uint256) {
+        return addressToContract[_contractCreator].length;
     }
 
     function getPaymentplans(
@@ -192,19 +224,16 @@ contract BlockpayFactory {
         return _paymentPlans;
     }
 
-    function withdrawBpf(
-        address _contractCreator,
-        uint256 _contractIndex
-    ) public {
-        Blockpay blockpayContract = getContract(
-            _contractCreator,
-            _contractIndex
-        );
-        blockpayContract.withdraw(msg.sender);
-        emit WithdrawnBpF(
-            _contractCreator,
-            _contractIndex,
-            address(this).balance
-        );
+    // function getAllPayments(
+    //     address _contractCreator
+    // ) public view returns (Payments[] memory) {}
+
+    function withdrawBpF() public {
+        for (uint256 i = 0; i < addressToContract[msg.sender].length; i++) {
+            Blockpay blockpayContract = getContract(msg.sender, i);
+            uint256 balance = blockpayContract.getContractBalance();
+            blockpayContract.withdraw(msg.sender);
+            emit WithdrawnBpF(msg.sender, i, balance);
+        }
     }
 }

@@ -64,11 +64,14 @@ contract Blockpay {
     function createPaymentPlan(
         string memory _planName,
         uint256 _amountInUSD,
+        string memory _paymentId,
+        uint256 _timeCreated,
         address _caller
     ) public onlyDeployer(_caller) {
         paymentPlan.amountInUSD = _amountInUSD;
         paymentPlan.planName = _planName;
-
+        paymentPlan.paymentId = _paymentId;
+        paymentPlan.timeCreated = _timeCreated;
         emit Created(_planName, _amountInUSD);
     }
 
@@ -78,27 +81,45 @@ contract Blockpay {
         string memory _lastname,
         string memory _email,
         uint256 _value,
-        address _caller
+        address _caller,
+        uint256 _timeStamp,
+        string memory _paymentId
     ) public payable {
         // get plan amount
         uint256 planAmount = paymentPlan.amountInUSD;
+        uint256 usdvalue = _value.getConversionRate(priceFeedAddress);
         // require the amount of matic sent in USD
         require(
             msg.sender == i_factoryContractAddress,
             "Call from factory contract"
         );
-        require(
-            _value.getConversionRate(priceFeedAddress) >= planAmount,
-            "Insufficient matic"
+        require(usdvalue >= planAmount, "Insufficient matic");
+        payments.push(
+            Payments(
+                usdvalue,
+                _firstName,
+                _lastname,
+                _email,
+                _timeStamp,
+                _paymentId,
+                _caller
+            )
         );
-        payments.push(Payments(_value, _firstName, _lastname, _email));
 
         mapPaymentsToAddress(
-            Payments(_value, _firstName, _lastname, _email),
+            Payments(
+                usdvalue,
+                _firstName,
+                _lastname,
+                _email,
+                _timeStamp,
+                _paymentId,
+                _caller
+            ),
             _caller
         );
 
-        emit ReceivedPayment(_value, _firstName, _lastname, _email);
+        emit ReceivedPayment(usdvalue, _firstName, _lastname, _email);
     }
 
     function mapPaymentsToAddress(
