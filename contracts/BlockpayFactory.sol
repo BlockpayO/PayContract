@@ -29,8 +29,7 @@ contract BlockpayFactory {
     );
     event WithdrawnBpF(
         address planCreator,
-        uint256 contractIndex,
-        Blockpay blockpayContract,
+        Blockpay[] indexed blockpayContract,
         uint256 withdrawnAmount
     );
     address public factoryDeployer;
@@ -243,11 +242,17 @@ contract BlockpayFactory {
     }
 
     function withdrawBpF() public {
+        Blockpay[] memory blockpayContracts = new Blockpay[](
+            addressToContract[msg.sender].length
+        );
+        uint256 totalBalance;
         for (uint256 i = 0; i < addressToContract[msg.sender].length; i++) {
             Blockpay blockpayContract = getContract(msg.sender, i);
             uint256 balance = blockpayContract.getContractBalance();
             blockpayContract.withdraw(msg.sender);
-            emit WithdrawnBpF(msg.sender, i, blockpayContract, balance);
+            blockpayContracts[i] = blockpayContract;
+            totalBalance += balance;
         }
+        emit WithdrawnBpF(msg.sender, blockpayContracts, totalBalance);
     }
 }
