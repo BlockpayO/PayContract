@@ -1,4 +1,4 @@
-# Polygon Pay
+# Blockpay Pay
 
 ```shell
 npx hardhat help
