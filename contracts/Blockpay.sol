@@ -157,6 +157,10 @@ contract Blockpay {
 
     // withdraw
     function withdraw(address _caller) public onlyDeployer(_caller) {
+        require(
+            msg.sender == i_factoryContractAddress,
+            "Call from factory contract"
+        );
         (bool sent, ) = _caller.call{value: address(this).balance}("");
         require(sent, "Withdrawal failed");
     }

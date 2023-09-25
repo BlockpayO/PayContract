@@ -1,4 +1,5 @@
 require("@nomicfoundation/hardhat-toolbox");
+require("@nomicfoundation/hardhat-chai-matchers");
 const dotenv = require("dotenv");
 dotenv.config();
 
@@ -6,6 +7,12 @@ dotenv.config();
 module.exports = {
   solidity: "0.8.18",
   networks: {
+    polygonMainnet: {
+      url: process.env.POLYGON_MAINNET_URL,
+      accounts: [process.env.PRIVATE_KEY],
+      chainId: 137,
+      blockConfirmations: 6,
+    },
     mumbai: {
       url: process.env.MUMBAI_URL,
       accounts: [process.env.PRIVATE_KEY],

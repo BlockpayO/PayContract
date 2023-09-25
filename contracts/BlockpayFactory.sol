@@ -19,7 +19,6 @@ contract BlockpayFactory {
         string paymentId
     );
     event ReceivedPaymentBpF(
-        address planCreator,
         address payer,
         string paymentId,
         string firstname,
@@ -39,7 +38,7 @@ contract BlockpayFactory {
 
     mapping(address => Blockpay[]) addressToContract;
     mapping(address => mapping(Blockpay => uint256)) creatorToContractAddressToContractIndex;
-    mapping(address => mapping(string => Blockpay)) creatorToPaymentIDToBlockpayContract;
+    mapping(string => Blockpay) paymentIDToBlockpayContract;
 
     constructor(address _priceFeedAddress) {
         factoryDeployer = msg.sender;
@@ -59,6 +58,11 @@ contract BlockpayFactory {
             msg.sender,
             address(this)
         );
+        require(
+            paymentIDToBlockpayContract[_paymentId] ==
+                Blockpay(payable(address(0))),
+            "PaymentId already exists"
+        );
         blockpayContract.createPaymentPlan(
             _planName,
             _amountInUSD,
@@ -70,9 +74,7 @@ contract BlockpayFactory {
         creatorToContractAddressToContractIndex[msg.sender][
             blockpayContract
         ] = count;
-        creatorToPaymentIDToBlockpayContract[msg.sender][
-            _paymentId
-        ] = blockpayContract;
+        paymentIDToBlockpayContract[_paymentId] = blockpayContract;
         emit CreatedPaymentPlanBpF(
             blockpayContract,
             _planName,
@@ -85,18 +87,13 @@ contract BlockpayFactory {
 
     // receive payment
     function receivePaymentBpF(
-        address _contractCreator,
         string memory _paymentId,
         string memory _firstName,
         string memory _lastname,
         string memory _email
     ) public payable {
-        Blockpay blockpayContract = getContractById(
-            _contractCreator,
-            _paymentId
-        );
-        uint256 _amountInUSD = getPaymentPlanBpF(_contractCreator, _paymentId)
-            .amountInUSD;
+        Blockpay blockpayContract = getContractById(_paymentId);
+        uint256 _amountInUSD = getPaymentPlanBpF(_paymentId).amountInUSD;
         require(
             msg.value.getConversionRate(priceFeedAddress) >= _amountInUSD,
             "Insufficient Matic sent"
@@ -113,7 +110,6 @@ contract BlockpayFactory {
                 _paymentId
             );
             emit ReceivedPaymentBpF(
-                _contractCreator,
                 msg.sender,
                 _paymentId,
                 _firstName,
@@ -138,14 +134,10 @@ contract BlockpayFactory {
     }
 
     function getPaymentsPerAddressBpF(
-        address _contractCreator,
         string memory _paymentId,
         address _user
     ) public view returns (Payments[] memory) {
-        Blockpay blockpayContract = getContractById(
-            _contractCreator,
-            _paymentId
-        );
+        Blockpay blockpayContract = getContractById(_paymentId);
         return blockpayContract.getPaymentsPerAddress(_user);
     }
 
@@ -160,13 +152,9 @@ contract BlockpayFactory {
     }
 
     function getPaymentPlanBpF(
-        address _contractCreator,
         string memory _paymentId
     ) public view returns (PaymentPlan memory) {
-        Blockpay blockpayContract = getContractById(
-            _contractCreator,
-            _paymentId
-        );
+        Blockpay blockpayContract = getContractById(_paymentId);
 
         return blockpayContract.getPaymentPlan();
     }
@@ -181,11 +169,9 @@ contract BlockpayFactory {
 
     // get contract by paymentId
     function getContractById(
-        address _contractCreator,
         string memory _paymentId
     ) public view returns (Blockpay) {
-        return
-            creatorToPaymentIDToBlockpayContract[_contractCreator][_paymentId];
+        return paymentIDToBlockpayContract[_paymentId];
     }
 
     // get the index of a blockpay contract
